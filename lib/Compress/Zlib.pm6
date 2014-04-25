@@ -69,6 +69,8 @@ class Compress::Zlib::Stream {
 
     has $.finished = False;
 
+    has $!zlib-finished = False;
+
     method inflate($data) {
         die "Cannot inflate and deflate with the same object!" if $!deflate-init;
         die "Stream end reached!" if $.finished;
@@ -77,7 +79,6 @@ class Compress::Zlib::Stream {
             $!z-stream = Compress::Zlib::Raw::z_stream.new;
         }
 
-        #$!z-stream.set-input-buffer($data);
         my $input-buf = CArray[int8].new;
         for 0..^$data.elems {
             $input-buf[$_] = $data[$_];
@@ -90,7 +91,6 @@ class Compress::Zlib::Stream {
             my $output-buf = CArray[int8].new;
             $output-buf[1023] = 1;
             $!z-stream.set-output($output-buf, 1024);
-            #my $output-buf := $!z-stream.new-output-buffer(1024);
 
             unless $!inflate-init {
                 $!inflate-init = True;
@@ -120,23 +120,96 @@ class Compress::Zlib::Stream {
     method deflate($data) {
         die "Cannot inflate and deflate with the same object!" if $!inflate-init;
         die ".finish was called!" if $.finished;
+
+        unless $!deflate-init {
+            $!z-stream = Compress::Zlib::Raw::z_stream.new;
+        }
+
+        my $input-buf = CArray[int8].new;
+        for 0..^$data.elems {
+            $input-buf[$_] = $data[$_];
+        }
+        $!z-stream.set-input($input-buf, $data.elems);
+
+        my @out;
+
+        loop {
+            my $output-buf = CArray[int8].new;
+            $output-buf[1023] = 1;
+            $!z-stream.set-output($output-buf, 1024);
+
+            unless $!deflate-init {
+                $!deflate-init = True;
+                Compress::Zlib::Raw::deflateInit($!z-stream, 6);
+            }
+
+            # XXX At some point, we should support Z_NO_FLUSH, as we can get
+            # slightly better compression ratios that way
+            my $ret = Compress::Zlib::Raw::deflate($!z-stream, Compress::Zlib::Raw::Z_SYNC_FLUSH);
+
+            unless $ret == Compress::Zlib::Raw::Z_OK {
+                fail "...";
+            }
+
+            for 0..^(1024 - $!z-stream.avail-out) {
+                @out.push($output-buf[$_]);
+            }
+
+            if $!z-stream.avail-out && !($!z-stream.avail-in) {
+                return Buf.new(@out);
+            }
+        }
     }
 
-    method flush() {
+    method flush(:$finish) {
         if $!inflate-init {
             return Buf.new();
         } elsif $!deflate-init {
+            if $finish && !$!finished {
+                my @out;
+                loop {
+                    my $output-buf = CArray[int8].new;
+                    $output-buf[1023] = 1;
+                    $!z-stream.set-output($output-buf, 1024);
 
+                    my $ret = Compress::Zlib::Raw::deflate($!z-stream, Compress::Zlib::Raw::Z_FINISH);
+
+                    unless $ret == Compress::Zlib::Raw::Z_OK|Compress::Zlib::Raw::Z_STREAM_END {
+                        fail "...";
+                    }
+
+                    for 0..^(1024 - $!z-stream.avail-out) {
+                        @out.push($output-buf[$_]);
+                    }
+
+                    if $ret == Compress::Zlib::Raw::Z_STREAM_END {
+                        $!finished = True;
+                    }
+
+                    if $ret == Compress::Zlib::Raw::Z_STREAM_END || $!z-stream.avail-out {
+                        return Buf.new(@out);
+                    }
+                }
+            } else {
+                return Buf.new();
+            }
         }
     }
 
     method finish() {
+        if $!zlib-finished {
+            return;
+        }
+        $!zlib-finished = True;
+        my $flushed = self.flush(:finish);
         if $!inflate-init {
             Compress::Zlib::Raw::inflateEnd($!z-stream);
             $!finished = True;
         } elsif $!deflate-init {
-
+            Compress::Zlib::Raw::deflateEnd($!z-stream);
+            $!finished = True;
         }
+        return $flushed;
     }
 }
 
