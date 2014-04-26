@@ -9,10 +9,6 @@ Compress::Zlib - A (hopefully) nice interface to zlib
 
 Compresses and uncompresses data using zlib.
 
-Note that the stream compression class doesn't work properly on perl6-m yet, due
-to a precompilation issue. If you need the stream function on perl6-m, you will
-have to use this library from source (not precompiled).
-
 ## Example Usage ##
 
     use Compress::Zlib;
