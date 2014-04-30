@@ -217,7 +217,7 @@ class Compress::Zlib::Wrap {
     has $.handle;
     has $!compressor;
     has $!decompressor;
-    has Buf $!read-buffer;
+    has Buf $!read-buffer = Buf.new;
 
     method new($handle){
         self.bless(:$handle);
@@ -229,13 +229,14 @@ class Compress::Zlib::Wrap {
     }
 
     method send(Str $stuff) {
-        $.handle.write($!compressor.deflate($stuff.encode));
+        self.write($stuff.encode);
     }
 
     method get() {
         my $chunksize = 128;
 
-        my $nl = $.handle.input-line-separator;
+        my $nl = "\n";
+        $nl = $.handle.input-line-separator if $.handle.can('input-line-separator');
         loop {
             my $i = $!read-buffer.decode.index($nl);
             if $i.defined {
@@ -244,7 +245,8 @@ class Compress::Zlib::Wrap {
                 return $ret;
             }
 
-            if $!decompressor.finished {
+            if $!decompressor.finished || self.eof {
+                return Str unless $!read-buffer.elems;
                 my $ret = $!read-buffer.decode;
                 $!read-buffer = Buf.new;
                 return $ret;
@@ -278,6 +280,11 @@ class Compress::Zlib::Wrap {
     method read($size) {
         while $!read-buffer.elems < $size {
             my $c = $.handle.read($size);
+            unless $c.elems {
+                my $ret = $!read-buffer;
+                $!read-buffer = Buf.new;
+                return $ret;
+            }
             fail "Unable to read from handle" unless $c;
             $!read-buffer ~= $!decompressor.inflate($c);
         }
@@ -288,10 +295,10 @@ class Compress::Zlib::Wrap {
     }
 
     multi method print(Str $stuff) {
-
+        self.send($stuff);
     }
-    multi method print(@stuff) {
-
+    multi method print(*@stuff) {
+        self.send($_) for @stuff;
     }
 
     method close() {
@@ -301,7 +308,8 @@ class Compress::Zlib::Wrap {
     }
 
     method end() {
-        $.handle.write($!compressor.finish());
+        my $stuff = $!compressor.finish();
+        $.handle.write($stuff) if $stuff;
         $!decompressor.finish();
     }
 
@@ -309,24 +317,76 @@ class Compress::Zlib::Wrap {
         return $!decompressor.finished || $.handle.eof;
     }
 
-    method lines() {
-
+    method opened() {
+        return $.handle.opened;
     }
 
-    method say($stuff) {
-
+    method flush() {
+        my $buf = $!compressor.flush();
+        $.handle.write($buf) if $buf;
+        $.handle.flush;
     }
 
-    method slurp {
-
+    method lines($limit = $Inf) {
+        if $limit == $Inf {
+            gather while nqp::p6definite(my $line = self.get) {
+                take $line;
+            }
+        }
+        else {
+            my $count = 0;
+            gather while ++$count <= $limit && nqp::p6definite(my $line = self.get) {
+                take $line;
+            }
+        }
     }
 
-    method spurt {
+    multi method say(IO::Handle:D: |) {
+        my Mu $args := nqp::p6argvmarray();
+        nqp::shift($args);
+        self.print: nqp::shift($args).gist while $args;
+        self.print: "\n";
+    }
 
+    method slurp(:$bin, :enc($encoding)) {
+        self.encoding($encoding) if $encoding.defined;
+
+        if $bin {
+            my $Buf = buf8.new();
+            loop {
+                my $current  = self.read(10_000);
+                $Buf ~= $current;
+                last if $current.bytes == 0;
+            }
+            self.close;
+            $Buf;
+        }
+        else {
+            my $contents = self.lines.join;
+            self.close();
+            $contents
+        }
+    }
+
+    proto method spurt(|) { * }
+    multi method spurt(Cool $contents) {
+        self.send($contents);
+        self.close;
+    }
+    
+    multi method spurt(Blob $contents) {
+        self.write($contents);
+        self.close;
     }
 
     method recv($chars = Inf, :$bin = False){
-        
+        if $chars == Inf {
+            return self.slurp(:$bin);
+        } else {
+            my $buf = self.read($chars);
+            return $buf if $bin;
+            return $buf.decode;
+        }
     }
 }
 
@@ -339,5 +399,5 @@ our sub zslurp($path) is export {
 }
 
 our sub zspurt($path, $stuff) is export {
-    
+    return zwrap(open($path, :w)).spurt($stuff);
 }
