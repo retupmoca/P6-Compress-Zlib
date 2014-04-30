@@ -239,11 +239,15 @@ class Compress::Zlib::Wrap {
         loop {
             my $i = $!read-buffer.decode.index($nl);
             if $i.defined {
-                return $!read-buffer.subbuf(0, $i + $nl.chars).decode;
+                my $ret = $!read-buffer.subbuf(0, $i + $nl.chars).decode;
+                $!read-buffer = $!read-buffer.subbuf($i + $nl.chars);
+                return $ret;
             }
 
             if $!decompressor.finished {
-                return $!read-buffer.decode;
+                my $ret = $!read-buffer.decode;
+                $!read-buffer = Buf.new;
+                return $ret;
             }
 
             my $c = $.handle.read($chunksize);
@@ -253,25 +257,59 @@ class Compress::Zlib::Wrap {
     }
 
     method getc() {
+        my $chunksize = 32;
 
+        while !$!read-buffer.elems {
+            my $c = $.handle.read($chunksize);
+            fail "Unable to read from handle" unless $c;
+            $!read-buffer = $!decompressor.inflate($c);
+        }
+
+        my $char = $!read-buffer.subbuf(0,1).decode;
+        $!read-buffer .= subbuf(1);
+        return $char;
     }
 
-    method lines() {
-
-    }
 
     method write(Blob $stuff) {
-
+        $.handle.write($!compressor.deflate($stuff));
     }
 
     method read($size) {
+        while $!read-buffer.elems < $size {
+            my $c = $.handle.read($size);
+            fail "Unable to read from handle" unless $c;
+            $!read-buffer ~= $!decompressor.inflate($c);
+        }
 
+        my $ret = $!read-buffer.subbuf(0,$size);
+        $!read-buffer .= subbuf($size);
+        return $ret;
     }
 
     multi method print(Str $stuff) {
 
     }
     multi method print(@stuff) {
+
+    }
+
+    method close() {
+        self.end();
+        $!decompressor.finish();
+        $.handle.close;
+    }
+
+    method end() {
+        $.handle.write($!compressor.finish());
+        $!decompressor.finish();
+    }
+
+    method eof() {
+        return $!decompressor.finished || $.handle.eof;
+    }
+
+    method lines() {
 
     }
 
@@ -286,4 +324,20 @@ class Compress::Zlib::Wrap {
     method spurt {
 
     }
+
+    method recv($chars = Inf, :$bin = False){
+        
+    }
+}
+
+our sub zwrap($thing) is export {
+    return Compress::Zlib::Wrap.new($thing);
+}
+
+our sub zslurp($path) is export {
+    return zwrap(open($path, :r)).slurp;
+}
+
+our sub zspurt($path, $stuff) is export {
+    
 }
