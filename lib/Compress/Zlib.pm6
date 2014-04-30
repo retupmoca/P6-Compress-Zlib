@@ -69,7 +69,17 @@ class Compress::Zlib::Stream {
 
     has $.finished = False;
 
+    has $!window-bits;
+
     has $!zlib-finished = False;
+
+    method new(:$zlib, :$deflate, :$gzip) {
+        my $window-bits = 15;
+        $window-bits = -15 if $deflate;
+        $window-bits = 15 + 16 if $gzip;
+        self.bless(:$window-bits);
+    }
+    submethod BUILD(:$!window-bits) { }
 
     method inflate($data) {
         die "Cannot inflate and deflate with the same object!" if $!deflate-init;
@@ -94,7 +104,7 @@ class Compress::Zlib::Stream {
 
             unless $!inflate-init {
                 $!inflate-init = True;
-                Compress::Zlib::Raw::inflateInit($!z-stream);
+                Compress::Zlib::Raw::inflateInit2($!z-stream, $!window-bits);
             }
 
             my $ret = Compress::Zlib::Raw::inflate($!z-stream, Compress::Zlib::Raw::Z_SYNC_FLUSH);
@@ -140,7 +150,12 @@ class Compress::Zlib::Stream {
 
             unless $!deflate-init {
                 $!deflate-init = True;
-                Compress::Zlib::Raw::deflateInit($!z-stream, 6);
+                Compress::Zlib::Raw::deflateInit2($!z-stream,
+                                                  6,
+                                                  Compress::Zlib::Raw::Z_DEFLATED,
+                                                  $!window-bits,
+                                                  8,
+                                                  Compress::Zlib::Raw::Z_DEFAULT_STRATEGY);
             }
 
             # XXX At some point, we should support Z_NO_FLUSH, as we can get
