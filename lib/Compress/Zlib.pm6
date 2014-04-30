@@ -213,4 +213,77 @@ class Compress::Zlib::Stream {
     }
 }
 
-# implement a 'role zlibStream' (so you can do $file but zlibStream)
+class Compress::Zlib::Wrap {
+    has $.handle;
+    has $!compressor;
+    has $!decompressor;
+    has Buf $!read-buffer;
+
+    method new($handle){
+        self.bless(:$handle);
+    }
+
+    submethod BUILD(:$!handle) {
+        $!compressor = Compress::Zlib::Stream.new;
+        $!decompressor = Compress::Zlib::Stream.new;
+    }
+
+    method send(Str $stuff) {
+        $.handle.write($!compressor.deflate($stuff.encode));
+    }
+
+    method get() {
+        my $chunksize = 128;
+
+        my $nl = $.handle.input-line-separator;
+        loop {
+            my $i = $!read-buffer.decode.index($nl);
+            if $i.defined {
+                return $!read-buffer.subbuf(0, $i + $nl.chars).decode;
+            }
+
+            if $!decompressor.finished {
+                return $!read-buffer.decode;
+            }
+
+            my $c = $.handle.read($chunksize);
+            fail "Unable to read from handle" unless $c;
+            $!read-buffer ~= $!decompressor.inflate($c);
+        }
+    }
+
+    method getc() {
+
+    }
+
+    method lines() {
+
+    }
+
+    method write(Blob $stuff) {
+
+    }
+
+    method read($size) {
+
+    }
+
+    multi method print(Str $stuff) {
+
+    }
+    multi method print(@stuff) {
+
+    }
+
+    method say($stuff) {
+
+    }
+
+    method slurp {
+
+    }
+
+    method spurt {
+
+    }
+}
