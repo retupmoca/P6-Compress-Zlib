@@ -12,11 +12,17 @@ Compresses and uncompresses data using zlib.
 ## Example Usage ##
 
     use Compress::Zlib;
+
+    my $wrapped = Compress::Zlib::Wrap.new($handle); # can be a socket, filehandle, etc
+    my $wrapped = zwrap($handle); # does the same thing as the above line
+
+    $wrapped.send("data");
+    my $response = $wrapped.get;
+
+    gzslurp("file.gz"); # reads in a gzipped file
+    gzspurt("file.gz", "stuff"); # spits out a gzipped file
+
     
-    my $compressed = compress($string.encode('utf8'));
-    my $original = uncompress($compressed).decode('utf8');
-
-
     my $compressor = Compress::Zlib::Stream.new;
     loop {
         $socket.write($compressor.deflate($data-chunk));
@@ -28,11 +34,9 @@ Compresses and uncompresses data using zlib.
         my $data-chunk = $decompressor.inflate($socket.read($size));
     }
 
-    my $wrapped = Compress::Zlib::Wrap.new($handle); # can be a socket, filehandle, etc
-    my $wrapped = zwrap($handle); # does the same thing as the above line
 
-    gzslurp("file.gz"); # reads in a gzipped file
-    gzspurt("file.gz", "stuff"); # spits out a gzipped file
+    my $compressed = compress($string.encode('utf8'));
+    my $original = uncompress($compressed).decode('utf8');
 
 ## Handle Wrapper ##
 
