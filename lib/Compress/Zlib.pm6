@@ -234,13 +234,13 @@ class Compress::Zlib::Wrap {
     has $!decompressor;
     has Buf $!read-buffer = Buf.new;
 
-    method new($handle){
-        self.bless(:$handle);
+    method new($handle, :$zlib, :$deflate, :$gzip){
+        self.bless(:$handle, :$zlib, :$deflate, :$gzip);
     }
 
-    submethod BUILD(:$!handle) {
-        $!compressor = Compress::Zlib::Stream.new;
-        $!decompressor = Compress::Zlib::Stream.new;
+    submethod BUILD(:$!handle, :$zlib, :$deflate, :$gzip) {
+        $!compressor = Compress::Zlib::Stream.new(:$zlib, :$gzip, :$deflate);
+        $!decompressor = Compress::Zlib::Stream.new(:$zlib, :$gzip, :$deflate);
     }
 
     method send(Str $stuff) {
@@ -405,14 +405,14 @@ class Compress::Zlib::Wrap {
     }
 }
 
-our sub zwrap($thing) is export {
-    return Compress::Zlib::Wrap.new($thing);
+our sub zwrap($thing, :$zlib, :$deflate, :$gzip) is export {
+    return Compress::Zlib::Wrap.new($thing, :$zlib, :$deflate, :$gzip);
 }
 
-our sub zslurp($path) is export {
-    return zwrap(open($path, :r)).slurp;
+our sub gzslurp($path, :$bin) is export {
+    return zwrap(open($path, :r), :gzip).slurp(:$bin);
 }
 
-our sub zspurt($path, $stuff) is export {
-    return zwrap(open($path, :w)).spurt($stuff);
+our sub gzspurt($path, $stuff, :$bin) is export {
+    return zwrap(open($path, :w), :gzip).spurt($stuff, :$bin);
 }
