@@ -28,15 +28,21 @@ Compresses and uncompresses data using zlib.
         my $data-chunk = $decompressor.inflate($socket.read($size));
     }
 
-## Functions ##
+    my $wrapped = Compress::Zlib::Wrap.new($handle); # can be a socket, filehandle, etc
+    my $wrapped = zwrap($handle); # does the same thing as the above line
 
- -  `compress(Blob $data, Int $level? --> Buf)`
+    gzslurp("file.gz"); # reads in a gzipped file
+    gzspurt("file.gz", "stuff"); # spits out a gzipped file
 
-    Compresses binary $data. $level is the optional compression level (0 <= x <= 9); defaults to 6.
+## Handle Wrapper ##
 
- -  `uncompress(Blob $data --> Buf)`
+ -  `zwrap($handle, :$gzip, :$zlib, :$deflate --> Compress::Zlib::Wrap)`
 
-    Uncompresses previously compressed $data.
+    Returns a wrapped handle that will read and write data in the compressed format.
+
+ -  `gzslurp($filename, :$bin)`
+
+ -  `gzspurt($filename, $stuff, :$bin)`
 
 ## Stream Class ##
 
@@ -81,18 +87,14 @@ open an issue and I will move it to the top of my priority list.
     Call when you want a Z_STREAM_END to happen when compressing, or if you are
     finished with the object.
 
-## Handle Wrapper ##
+## Misc Functions ##
 
-    my $wrapped = Compress::Zlib::Wrap.new($handle); # can be a socket, filehandle, etc
-    my $wrapped = zwrap($handle); # does the same thing as the above line
+These only handle zlib format data, not gzip or deflate.
 
-    gzslurp("file.gz"); # reads in a gzipped file
-    gzspurt("file.gz", "stuff"); # spits out a gzipped file
+ -  `compress(Blob $data, Int $level? --> Buf)`
 
- -  `zwrap($handle, :$gzip, :$zlib, :$deflate --> Compress::Zlib::Wrap)`
+    Compresses binary $data. $level is the optional compression level (0 <= x <= 9); defaults to 6.
 
-    Returns a wrapped handle that will read and write data in the compressed format.
+ -  `uncompress(Blob $data --> Buf)`
 
- -  `gzslurp($filename, :$bin)`
-
- -  `gzspurt($filename, $stuff, :$bin)`
+    Uncompresses previously compressed $data.
