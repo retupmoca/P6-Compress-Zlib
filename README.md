@@ -44,10 +44,12 @@ This currently has very few options. Over time, I will add support for custom
 compression levels, gzip/raw deflate streams, etc. If you need a specific feature,
 open an issue and I will move it to the top of my priority list.
 
- -  `new( --> Compress::Zlib::Stream)`
+ -  `new(:$gzip, :$zlib, :$deflate --> Compress::Zlib::Stream)`
 
     Creates a new object that can be used for either compressing or decompressing
     (but not both!).
+
+    Defaults to zlib compression.
 
  -  `finished( --> Bool)`
 
@@ -78,3 +80,19 @@ open an issue and I will move it to the top of my priority list.
 
     Call when you want a Z_STREAM_END to happen when compressing, or if you are
     finished with the object.
+
+## Handle Wrapper ##
+
+    my $wrapped = Compress::Zlib::Wrap.new($handle); # can be a socket, filehandle, etc
+    my $wrapped = zwrap($handle); # does the same thing as the above line
+
+    gzslurp("file.gz"); # reads in a gzipped file
+    gzspurt("file.gz", "stuff"); # spits out a gzipped file
+
+ -  `zwrap($handle, :$gzip, :$zlib, :$deflate --> Compress::Zlib::Wrap)`
+
+    Returns a wrapped handle that will read and write data in the compressed format.
+
+ -  `gzslurp($filename, :$bin)`
+
+ -  `gzspurt($filename, $stuff, :$bin)`
