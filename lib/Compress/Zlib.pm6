@@ -342,8 +342,8 @@ class Compress::Zlib::Wrap {
         $.handle.flush;
     }
 
-    method lines($limit = $Inf) {
-        if $limit == $Inf {
+    method lines($limit = Inf) {
+        if $limit == Inf {
             gather while nqp::p6definite(my $line = self.get) {
                 take $line;
             }
