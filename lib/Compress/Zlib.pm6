@@ -253,10 +253,22 @@ class Compress::Zlib::Wrap {
         my $nl = "\n";
         $nl = $.handle.input-line-separator if $.handle.can('input-line-separator');
         loop {
-            my $i = $!read-buffer.decode.index($nl);
+            my $bufstr;
+
+            # If decoding fails, assume it is caused by our buffer ending in the middle of a multibyte character
+            # so chop a byte off the end and try again
+            my $len = $!read-buffer.elems;
+            my $cut = 0;
+            while !($bufstr ~~ Str) {
+                $bufstr = try $!read-buffer.subbuf(0,$len-$cut).decode;
+                $cut++;
+            }
+            ##
+
+            my $i = $bufstr.index($nl);
             if $i.defined {
-                my $ret = $!read-buffer.subbuf(0, $i + $nl.chars).decode;
-                $!read-buffer = $!read-buffer.subbuf($i + $nl.chars);
+                my $ret = $bufstr.substr(0,$i+$nl.chars);
+                $!read-buffer = $!read-buffer.subbuf($ret.encode.bytes);
                 return $ret;
             }
 
