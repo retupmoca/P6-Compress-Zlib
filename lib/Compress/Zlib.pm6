@@ -218,7 +218,7 @@ class Compress::Zlib::Wrap {
         my $chunksize = 128;
 
         my $nl = "\n";
-        $nl = $.handle.input-line-separator if $.handle.can('input-line-separator');
+        $nl = $.handle.nl if $.handle.can('nl');
         loop {
             my $bufstr;
 
