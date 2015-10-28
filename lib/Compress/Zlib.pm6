@@ -41,6 +41,14 @@ our sub uncompress(Blob $data --> Buf) is export {
     return $outdata.subbuf(0, $len);
 }
 
+sub _buf-chop($buf is rw, $length) {
+    nqp::splice(nqp::decont($buf), nqp::decont(buf8.new()), $length, $buf.elems - $length);
+}
+
+sub _buf-append($bufa is rw, $bufb) {
+    nqp::splice(nqp::decont($bufa), nqp::decont($bufb), $bufa.elems, 0);
+}
+
 class Compress::Zlib::Stream {
     has $!z-stream;
     has $!gz-header;
@@ -92,8 +100,9 @@ class Compress::Zlib::Stream {
                 fail "Cannot inflate stream: $!z-stream.msg()";
             }
 
-            #$out.append: $output-buf[0..(1023 - $!z-stream.avail-out)];
-            $out ~= $output-buf.subbuf(0, 1024 - $!z-stream.avail-out);
+            _buf-chop($output-buf, 1024 - $!z-stream.avail-out);
+            _buf-append($out, $output-buf);
+            #$out ~= $output-buf.subbuf(0, 1024 - $!z-stream.avail-out);
 
             if $ret == Compress::Zlib::Raw::Z_STREAM_END {
                 $!bytes-left = $!z-stream.avail-in;
@@ -141,7 +150,9 @@ class Compress::Zlib::Stream {
                 fail "Cannot deflate stream: $!z-stream.msg()";
             }
 
-            $out ~= $output-buf.subbuf(0, 1024 - $!z-stream.avail-out);
+            _buf-chop($output-buf, 1024 - $!z-stream.avail-out);
+            _buf-append($out, $output-buf);
+            #$out ~= $output-buf.subbuf(0, 1024 - $!z-stream.avail-out);
 
             if $!z-stream.avail-out && !($!z-stream.avail-in) {
                 return $out;
