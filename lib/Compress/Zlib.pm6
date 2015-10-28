@@ -92,7 +92,8 @@ class Compress::Zlib::Stream {
                 fail "Cannot inflate stream: $!z-stream.msg()";
             }
 
-            $out.append: $output-buf[0..(1023 - $!z-stream.avail-out)];
+            #$out.append: $output-buf[0..(1023 - $!z-stream.avail-out)];
+            $out ~= $output-buf.subbuf(0, 1024 - $!z-stream.avail-out);
 
             if $ret == Compress::Zlib::Raw::Z_STREAM_END {
                 $!bytes-left = $!z-stream.avail-in;
