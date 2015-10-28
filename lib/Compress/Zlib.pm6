@@ -74,7 +74,7 @@ class Compress::Zlib::Stream {
 
         $!z-stream.set-input($data);
 
-        my $out = buf8.new;
+        my @out;
 
         loop {
             my $output-buf = buf8.new;
@@ -92,7 +92,7 @@ class Compress::Zlib::Stream {
                 fail "Cannot inflate stream: $!z-stream.msg()";
             }
 
-            $out ~= $output-buf.subbuf(0, 1024 - $!z-stream.avail-out);
+            @out.append: $output-buf.subbuf(0, 1024 - $!z-stream.avail-out).list;
 
             if $ret == Compress::Zlib::Raw::Z_STREAM_END {
                 $!bytes-left = $!z-stream.avail-in;
@@ -100,7 +100,7 @@ class Compress::Zlib::Stream {
             }
 
             if $ret == Compress::Zlib::Raw::Z_STREAM_END || ($!z-stream.avail-out && !($!z-stream.avail-in)) {
-                return $out;
+                return buf8.new(@out);
             }
         }
     }
