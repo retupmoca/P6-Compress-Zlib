@@ -1,12 +1,7 @@
-# P6-Compress-Zlib
+# Compress::Zlib
 
-## Name ##
-
-Compress::Zlib - A (hopefully) nice interface to zlib
-
-## Description ##
-
-Compresses and uncompresses data using zlib.
+This is a (hopefully) nice interface to zlib. It compresses and uncompresses
+data using zlib native library.
 
 ## Example Usage ##
 
