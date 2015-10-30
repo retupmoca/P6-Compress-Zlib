@@ -16,7 +16,12 @@ my $response = $wrapped.get;
 
 gzslurp("file.gz"); # reads in a gzipped file
 gzspurt("file.gz", "stuff"); # spits out a gzipped file
+```
 
+- Streaming (de)compression
+
+```Perl6
+use Compress::Zlib;
 
 my $compressor = Compress::Zlib::Stream.new;
 loop {
@@ -28,7 +33,12 @@ my $decompressor = Compress::Zlib::Stream.new;
 while !$decompressor.finished {
     my $data-chunk = $decompressor.inflate($socket.read($size));
 }
+```
 
+- Miscellaneous Functions
+
+```Perl6
+use Compress::Zlib;
 
 my $compressed = compress($string.encode('utf8'));
 my $original = uncompress($compressed).decode('utf8');
