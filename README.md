@@ -3,7 +3,7 @@
 This is a (hopefully) nice interface to zlib. It compresses and uncompresses
 data using zlib native library.
 
-## Example Usage ##
+## Usage
 
 ```Perl6
 use Compress::Zlib;
@@ -44,7 +44,7 @@ my $compressed = compress($string.encode('utf8'));
 my $original = uncompress($compressed).decode('utf8');
 ```
 
-## Handle Wrapper ##
+## Handle Wrapper
 
  -  `zwrap($handle, :$gzip, :$zlib, :$deflate --> Compress::Zlib::Wrap)`
 
@@ -54,7 +54,7 @@ my $original = uncompress($compressed).decode('utf8');
 
  -  `gzspurt($filename, $stuff, :$bin)`
 
-## Stream Class ##
+## Stream Class
 
 This currently has very few options. Over time, I will add support for custom
 compression levels, gzip/raw deflate streams, etc. If you need a specific feature,
@@ -104,7 +104,7 @@ open an issue and I will move it to the top of my priority list.
     Call when you want a Z_STREAM_END to happen when compressing, or if you are
     finished with the object.
 
-## Misc Functions ##
+## Misc Functions
 
 **NOTE: These only handle zlib format data, not gzip or deflate.**
 
