@@ -217,6 +217,8 @@ class Compress::Zlib::Wrap {
     has $!compressor;
     has $!decompressor;
     has Buf $!read-buffer = Buf.new;
+    has $!nl = "\n";
+    has int $!nl-chars;
 
     method new($handle, :$zlib, :$deflate, :$gzip){
         self.bless(:$handle, :$zlib, :$deflate, :$gzip);
@@ -227,6 +229,11 @@ class Compress::Zlib::Wrap {
         $!decompressor = Compress::Zlib::Stream.new(:$zlib, :$gzip, :$deflate);
     }
 
+    submethod TWEAK() {
+        $!nl = $!handle.nl if $!handle.can('nl');
+        $!nl-chars = $!nl.chars;
+    }
+
     method send(Str $stuff) {
         self.write($stuff.encode);
     }
@@ -234,8 +241,6 @@ class Compress::Zlib::Wrap {
     method get() {
         my $chunksize = 128;
 
-        my $nl = "\n";
-        $nl = $.handle.nl if $.handle.can('nl');
         loop {
             my $bufstr;
 
@@ -249,9 +254,9 @@ class Compress::Zlib::Wrap {
             }
             ##
 
-            my $i = $bufstr.index($nl);
+            my $i = $bufstr.index($!nl);
             if $i.defined {
-                my $ret = $bufstr.substr(0,$i+$nl.chars);
+                my $ret = $bufstr.substr(0,$i+$!nl-chars);
                 $!read-buffer = $!read-buffer.subbuf($ret.encode.bytes);
                 return $ret;
             }
