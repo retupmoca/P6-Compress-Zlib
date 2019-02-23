@@ -48,7 +48,25 @@ my $original = uncompress($compressed).decode('utf8');
 
  -  `zwrap($handle, :$gzip, :$zlib, :$deflate --> Compress::Zlib::Wrap)`
 
-    Returns a wrapped handle that will read and write data in the compressed format.
+Returns a wrapped handle that will read and write data in the compressed format. For example:   
+ 
+```Perl6
+use Compress::Zlib;
+
+my $file   = "data.txt.gz";
+my $handle = try open $file or die "Error reading $file: $!";
+my $zwrap  = zwrap($handle, :gzip);
+
+for $zwrap.lines {
+    .print
+}
+
+$handle.close;
+
+CATCH { default { die "Error reading $file: $_" } }
+```
+
+## Slurp/spurt
 
  -  `gzslurp($filename, :$bin)`
 
