@@ -266,7 +266,7 @@ class Compress::Zlib::Wrap {
 
             my $c = $.handle.read($chunksize);
             fail "Unable to read from handle" unless $c;
-            $!read-buffer ~= $!decompressor.inflate($c);
+            $!read-buffer.append($!decompressor.inflate($c));
         }
     }
 
@@ -298,7 +298,7 @@ class Compress::Zlib::Wrap {
                 return $ret;
             }
             fail "Unable to read from handle" unless $c;
-            $!read-buffer ~= $!decompressor.inflate($c);
+            $!read-buffer.append($!decompressor.inflate($c));
         }
 
         my $ret = $!read-buffer.subbuf(0,$size);
@@ -367,7 +367,7 @@ class Compress::Zlib::Wrap {
             my $Buf = buf8.new();
             loop {
                 my $current  = self.read(10_000);
-                $Buf ~= $current;
+                $Buf.append($current);
                 last if $current.bytes == 0;
             }
             self.close;
