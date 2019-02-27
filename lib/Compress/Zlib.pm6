@@ -77,10 +77,11 @@ class Compress::Zlib::Stream {
         $!z-stream.set-input($data);
 
         my $out = buf8.new;
+        my $output-buf = buf8.new;
 
         loop {
-            my $output-buf = buf8.new;
-            $output-buf[8191] = 1;
+            $output-buf.reallocate(0);
+            $output-buf.reallocate(8192);
             $!z-stream.set-output($output-buf);
 
             unless $!inflate-init {
@@ -120,10 +121,11 @@ class Compress::Zlib::Stream {
         $!z-stream.set-input($data);
 
         my $out = buf8.new;
+        my $output-buf = buf8.new;
 
         loop {
-            my $output-buf = buf8.new;
-            $output-buf[8191] = 1;
+            $output-buf.reallocate(0);
+            $output-buf.reallocate(8192);
             $!z-stream.set-output($output-buf);
 
             unless $!deflate-init {
@@ -256,7 +258,7 @@ class Compress::Zlib::Wrap {
             if $!decompressor.finished || self.eof {
                 return Str unless $!read-buffer.elems;
                 my $ret = $!read-buffer.decode;
-                $!read-buffer = Buf.new;
+                $!read-buffer.reallocate(0);
                 return $ret;
             }
 
@@ -290,7 +292,7 @@ class Compress::Zlib::Wrap {
             my $c = $.handle.read($size);
             unless $c.elems {
                 my $ret = $!read-buffer;
-                $!read-buffer = Buf.new;
+                $!read-buffer.reallocate(0);
                 return $ret;
             }
             fail "Unable to read from handle" unless $c;
