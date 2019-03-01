@@ -213,6 +213,7 @@ class Compress::Zlib::Wrap {
     has Buf $!read-buffer = Buf.new;
     has $!nl = "\n";
     has int $!nl-chars;
+    has $!encoder;
 
     method new($handle, :$zlib, :$deflate, :$gzip){
         self.bless(:$handle, :$zlib, :$deflate, :$gzip);
@@ -221,6 +222,7 @@ class Compress::Zlib::Wrap {
     submethod BUILD(:$!handle, :$zlib, :$deflate, :$gzip) {
         $!compressor = Compress::Zlib::Stream.new(:$zlib, :$gzip, :$deflate);
         $!decompressor = Compress::Zlib::Stream.new(:$zlib, :$gzip, :$deflate);
+        $!encoder = Encoding::Registry.find('utf8').encoder;
     }
 
     submethod TWEAK() {
@@ -251,7 +253,7 @@ class Compress::Zlib::Wrap {
             my $i = $bufstr.index($!nl);
             if $i.defined {
                 my $ret = $bufstr.substr(0,$i+$!nl-chars);
-                $!read-buffer = $!read-buffer.subbuf($ret.encode.bytes);
+                $!read-buffer .= subbuf($!encoder.encode-chars($ret).bytes);
                 return $ret;
             }
 
