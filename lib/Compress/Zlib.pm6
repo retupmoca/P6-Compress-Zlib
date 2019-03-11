@@ -43,14 +43,6 @@ our sub uncompress(Blob $data --> Buf) is export {
     _internal-compression($data, False);
 }
 
-sub _buf-chop($buf is rw, $length) {
-    nqp::splice(nqp::decont($buf), nqp::decont(buf8.new()), $length, $buf.elems - $length);
-}
-
-sub _buf-append($bufa is rw, $bufb) {
-    nqp::splice(nqp::decont($bufa), nqp::decont($bufb), $bufa.elems, 0);
-}
-
 class Compress::Zlib::Stream {
     has $!z-stream;
     has $!gz-header;
@@ -85,10 +77,11 @@ class Compress::Zlib::Stream {
         $!z-stream.set-input($data);
 
         my $out = buf8.new;
+        my $output-buf = buf8.new;
 
         loop {
-            my $output-buf = buf8.new;
-            $output-buf[8191] = 1;
+            $output-buf.reallocate(0);
+            $output-buf.reallocate(8192);
             $!z-stream.set-output($output-buf);
 
             unless $!inflate-init {
@@ -102,8 +95,8 @@ class Compress::Zlib::Stream {
                 fail "Cannot inflate stream: $!z-stream.msg()";
             }
 
-            _buf-chop($output-buf, 8192 - $!z-stream.avail-out);
-            _buf-append($out, $output-buf);
+            $output-buf.reallocate(8192 - $!z-stream.avail-out);
+            $out.append($output-buf);
             #$out ~= $output-buf.subbuf(0, 8192 - $!z-stream.avail-out);
 
             if $ret == Compress::Zlib::Raw::Z_STREAM_END {
@@ -128,10 +121,11 @@ class Compress::Zlib::Stream {
         $!z-stream.set-input($data);
 
         my $out = buf8.new;
+        my $output-buf = buf8.new;
 
         loop {
-            my $output-buf = buf8.new;
-            $output-buf[8191] = 1;
+            $output-buf.reallocate(0);
+            $output-buf.reallocate(8192);
             $!z-stream.set-output($output-buf);
 
             unless $!deflate-init {
@@ -152,8 +146,8 @@ class Compress::Zlib::Stream {
                 fail "Cannot deflate stream: $!z-stream.msg()";
             }
 
-            _buf-chop($output-buf, 8192 - $!z-stream.avail-out);
-            _buf-append($out, $output-buf);
+            $output-buf.reallocate(8192 - $!z-stream.avail-out);
+            $out.append($output-buf);
             #$out ~= $output-buf.subbuf(0, 8192 - $!z-stream.avail-out);
 
             if $!z-stream.avail-out && !($!z-stream.avail-in) {
@@ -219,6 +213,7 @@ class Compress::Zlib::Wrap {
     has Buf $!read-buffer = Buf.new;
     has $!nl = "\n";
     has int $!nl-chars;
+    has $!encoder;
 
     method new($handle, :$zlib, :$deflate, :$gzip){
         self.bless(:$handle, :$zlib, :$deflate, :$gzip);
@@ -227,6 +222,7 @@ class Compress::Zlib::Wrap {
     submethod BUILD(:$!handle, :$zlib, :$deflate, :$gzip) {
         $!compressor = Compress::Zlib::Stream.new(:$zlib, :$gzip, :$deflate);
         $!decompressor = Compress::Zlib::Stream.new(:$zlib, :$gzip, :$deflate);
+        $!encoder = Encoding::Registry.find('utf8').encoder;
     }
 
     submethod TWEAK() {
@@ -257,20 +253,20 @@ class Compress::Zlib::Wrap {
             my $i = $bufstr.index($!nl);
             if $i.defined {
                 my $ret = $bufstr.substr(0,$i+$!nl-chars);
-                $!read-buffer = $!read-buffer.subbuf($ret.encode.bytes);
+                $!read-buffer .= subbuf($!encoder.encode-chars($ret).bytes);
                 return $ret;
             }
 
             if $!decompressor.finished || self.eof {
                 return Str unless $!read-buffer.elems;
                 my $ret = $!read-buffer.decode;
-                $!read-buffer = Buf.new;
+                $!read-buffer.reallocate(0);
                 return $ret;
             }
 
             my $c = $.handle.read($chunksize);
             fail "Unable to read from handle" unless $c;
-            $!read-buffer ~= $!decompressor.inflate($c);
+            $!read-buffer.append($!decompressor.inflate($c));
         }
     }
 
@@ -298,11 +294,11 @@ class Compress::Zlib::Wrap {
             my $c = $.handle.read($size);
             unless $c.elems {
                 my $ret = $!read-buffer;
-                $!read-buffer = Buf.new;
+                $!read-buffer.reallocate(0);
                 return $ret;
             }
             fail "Unable to read from handle" unless $c;
-            $!read-buffer ~= $!decompressor.inflate($c);
+            $!read-buffer.append($!decompressor.inflate($c));
         }
 
         my $ret = $!read-buffer.subbuf(0,$size);
@@ -371,7 +367,7 @@ class Compress::Zlib::Wrap {
             my $Buf = buf8.new();
             loop {
                 my $current  = self.read(10_000);
-                $Buf ~= $current;
+                $Buf.append($current);
                 last if $current.bytes == 0;
             }
             self.close;
