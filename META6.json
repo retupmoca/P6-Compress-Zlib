@@ -1,7 +1,7 @@
 {
     "perl" : "6.*",
     "name" : "Compress::Zlib",
-    "version" : "1.1.0",
+    "version" : "1.2.0",
     "author" : "github:retupmoca",
     "description" : "Nicer zlib interface",
     "depends" : ["Compress::Zlib::Raw"],
