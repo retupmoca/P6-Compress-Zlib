@@ -213,7 +213,7 @@ class Compress::Zlib::Wrap {
     has Buf $!read-buffer = Buf.new;
     has $!nl = "\n";
     has int $!nl-chars;
-    has $!encoder;
+    has $!decoder;
 
     method new($handle, :$zlib, :$deflate, :$gzip){
         self.bless(:$handle, :$zlib, :$deflate, :$gzip);
@@ -222,12 +222,13 @@ class Compress::Zlib::Wrap {
     submethod BUILD(:$!handle, :$zlib, :$deflate, :$gzip) {
         $!compressor = Compress::Zlib::Stream.new(:$zlib, :$gzip, :$deflate);
         $!decompressor = Compress::Zlib::Stream.new(:$zlib, :$gzip, :$deflate);
-        $!encoder = Encoding::Registry.find('utf8').encoder;
+        $!decoder = Encoding::Registry.find('utf8').decoder;
     }
 
     submethod TWEAK() {
         $!nl = $!handle.nl if $!handle.can('nl');
         $!nl-chars = $!nl.chars;
+        $!decoder.set-line-separators(($!nl).list);
     }
 
     method send(Str $stuff) {
@@ -235,39 +236,31 @@ class Compress::Zlib::Wrap {
     }
 
     method get() {
+        $!decoder.consume-line-chars // self!get-line-slow-path()
+    }
+
+    method !get-line-slow-path() {
         my $chunksize = 128;
-
-        loop {
-            my $bufstr;
-
-            # If decoding fails, assume it is caused by our buffer ending in the middle of a multibyte character
-            # so chop a byte off the end and try again
-            my $len = $!read-buffer.elems;
-            my $cut = 0;
-            while !($bufstr ~~ Str) {
-                $bufstr = try $!read-buffer.subbuf(0,$len-$cut).decode;
-                $cut++;
+        my $line := Nil;
+        unless self.eof && $!decoder.is-empty {
+            loop {
+                my $c = $.handle.read($chunksize);
+                if $c {
+                    my $buf = $!decompressor.inflate($c);
+                    $!read-buffer.append($buf);
+                    $!decoder.add-bytes($buf);
+                    $line := $!decoder.consume-line-chars();
+                    last if $line;
+                }
+                else {
+                    fail "Unable to read from handle" unless self.eof || $!decompressor.finished;
+                    $line := $!decoder.consume-line-chars(:eof)
+                        unless self.eof && $!decoder.is-empty;
+                    last;
+                }
             }
-            ##
-
-            my $i = $bufstr.index($!nl);
-            if $i.defined {
-                my $ret = $bufstr.substr(0,$i+$!nl-chars);
-                $!read-buffer .= subbuf($!encoder.encode-chars($ret).bytes);
-                return $ret;
-            }
-
-            if $!decompressor.finished || self.eof {
-                return Str unless $!read-buffer.elems;
-                my $ret = $!read-buffer.decode;
-                $!read-buffer.reallocate(0);
-                return $ret;
-            }
-
-            my $c = $.handle.read($chunksize);
-            fail "Unable to read from handle" unless $c;
-            $!read-buffer.append($!decompressor.inflate($c));
         }
+        $line
     }
 
     method getc() {
@@ -293,7 +286,7 @@ class Compress::Zlib::Wrap {
         while $!read-buffer.elems < $size {
             my $c = $.handle.read($size);
             unless $c.elems {
-                my $ret = $!read-buffer;
+                my $ret = $!read-buffer.clone;
                 $!read-buffer.reallocate(0);
                 return $ret;
             }
@@ -360,23 +353,20 @@ class Compress::Zlib::Wrap {
         self.print: "\n";
     }
 
-    method slurp(:$bin, :enc($encoding)) {
-        self.encoding($encoding) if $encoding.defined;
+    method slurp(:$bin) {
+        my $Buf = buf8.new();
+        loop {
+            my $current = self.read(10_000);
+            $Buf.append($current);
+            last if $current.bytes == 0;
+        };
+        self.close;
 
         if $bin {
-            my $Buf = buf8.new();
-            loop {
-                my $current  = self.read(10_000);
-                $Buf.append($current);
-                last if $current.bytes == 0;
-            }
-            self.close;
             $Buf;
         }
         else {
-            my $contents = self.lines.join;
-            self.close();
-            $contents
+            $Buf.decode;
         }
     }
 
